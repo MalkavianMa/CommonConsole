@@ -1,0 +1,113 @@
+﻿<#@ template language="C#" debug="True" hostspecific="True" #>
+<#@ output extension=".cs" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.xml" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ import namespace="System.Data" #>
+<#@ include file="$(ProjectDir)ModelAuto.ttinclude"#>
+<# var manager = new Manager(Host, GenerationEnvironment, true) { OutputPath = Path.GetDirectoryName(Host.TemplateFile)}; #>
+<# 
+	string connectionString = @"Server=192.168.1.130;Initial Catalog=ZHTQ_HaoWangJiao_DB;User ID=dll;Password=zy@123;"; 
+    SqlConnection conn = new SqlConnection(connectionString); 
+    conn.Open(); 
+    System.Data.DataTable schema = conn.GetSchema("TABLES"); 
+    string selectQuery = "select * from @tableName"; 
+    SqlCommand command = new SqlCommand(selectQuery,conn); 
+    SqlDataAdapter ad = new SqlDataAdapter(command); 
+    System.Data.DataSet ds = new DataSet();
+ 
+    string propQuery = "SELECT 表名=sobj.name,字段名=scol.name,字段说明=sprop.[value] FROM syscolumns as scol inner join sys.sysobjects as sobj on scol.id=sobj.id and sobj.xtype='U' and sobj.name<>'dtproperties' left join sys.extended_properties as sprop on scol.id=sprop.major_id and scol.colid=sprop.minor_id where sobj.name='@tableName' and scol.name='@columnName'"; 
+    SqlCommand command2 = new SqlCommand(propQuery,conn); 
+    SqlDataAdapter ad2 = new SqlDataAdapter(command2); 
+    System.Data.DataSet ds2 = new DataSet();
+ #>
+
+<# 
+    foreach(System.Data.DataRow row in schema.Rows) 
+    {  #>   
+
+     <# 
+		manager.StartBlock(row["TABLE_NAME"].ToString()+"Entity"+".cs");
+	 #>
+//----------<#=row["TABLE_NAME"].ToString()#>开始----------
+<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ output extension=".cs" #>
+<#@ assembly name="System.Core.dll" #>
+<#@ assembly name="System.Data.dll" #>
+<#@ assembly name="System.Data.DataSetExtensions.dll" #>
+<#@ assembly name="System.Xml.dll" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Xml" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Data" #>
+<#@ import namespace="System.Data.SqlClient" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.IO" #>
+<#@ include file="$(ProjectDir)DbHelper.ttinclude"  #>
+
+//------------------------------------------------------------------------------
+// 生成时间 <#=DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")#>
+// 对此文件的更改可能会导致不正确的行为，并且如果重新生成代码，这些更改将会丢失。
+//------------------------------------------------------------------------------
+<# 
+	//var tableName=config.TableName.Replace("Sys_","")+"Entity";
+	var tableName =row["TABLE_NAME"].ToString().Replace("Sys_","")+"Entity";
+	var dbColumns = DbHelper.GetDbColumns(config.ConnectionString, config.DbDatabase, row["TABLE_NAME"].ToString());
+ #>
+
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+namespace NFine.Domain.Entity
+{	
+	/// <summary>
+	/// <#=tableName#>
+	/// </summary>	
+	public class <#=tableName#>:IEntity<<#=tableName#>>, ICreationAudited <#if(dbColumns.Find(x=>x.ColumnName.ToUpper()=="F_DELETETIME")!=null ){#>,IDeleteAudited<#}#><#if(DbHelper.GetDbColumns(config.ConnectionString, config.DbDatabase, row["TABLE_NAME"].ToString()).Find(x=>x.ColumnName.ToUpper()=="F_LASTMODIFYTIME")!=null ){#>, IModificationAudited<#}#>
+	{
+<# foreach(DbColumn column in dbColumns){#>
+<#if(column.IsPrimaryKey && column.ColumnName.ToUpper()=="TABID"){#>
+		/// <summary>
+        /// 自增主键ID
+        /// </summary>
+		[Key]
+		[DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+		public int TabID{ get; set; }
+
+		/// <summary>
+        /// 用于兼容框架的主键设置
+        /// </summary>
+		[NotMapped()]
+		public string F_Id {
+			get { return this.TabID.ToString(); }
+			set { this.TabID = int.Parse(value); }
+		}
+<#}else if(column.ColumnName.ToUpper()=="F_ID"){#>
+		public string F_Id { get; set; }<#}else {#>
+		/// <summary>
+        /// <#= column.Remark#>
+        /// </summary>
+		public <#= column.CSharpType#><#if(column.CommonType.IsValueType && column.IsNullable){#>?<#}#> <#= column.ColumnName#> { get; set; }<#}#> 
+<#}#> 
+    }
+}
+
+
+//----------<#=row["TABLE_NAME"].ToString()#>结束----------
+
+	<# manager.EndBlock(); #>
+
+<# 
+    } #> 
+
+<#
+    manager.Process(true);
+#>
+
+
+ 
+
+
+
+
